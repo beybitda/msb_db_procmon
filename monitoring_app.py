@@ -191,11 +191,12 @@ div[data-baseweb="tab"][aria-selected="true"] { color: #4A9EFF !important; borde
 # ─── Mock data generator ────────────────────────────────────────────────────
 PROCESS_TYPES = ["AIRFLOW", "INFORMATICA", "SERVICE", "DBT", "SPARK"]
 PROCESS_NAMES = [
-    "etl_customers_daily", "etl_transactions_hourly", "etl_products_sync",
-    "report_revenue_monthly", "load_crm_data", "sync_inventory",
-    "aggregate_kpi_daily", "cleanup_temp_tables", "validate_data_quality",
-    "export_to_datalake", "ingest_raw_events", "transform_user_sessions",
+    "etl_customers", "etl_transactions", "etl_products",
+    "report_revenue", "load_crm", "sync_inventory",
+    "aggregate_kpi", "cleanup_temp", "validate_quality",
+    "export_datalake", "ingest_events", "transform_sessions",
 ]
+TASK_NAMES = ["extract", "transform", "load", "validate", "notify", "cleanup"]
 TABLES = [
     "DWH.FACT_SALES", "DWH.DIM_CUSTOMERS", "DWH.FACT_TRANSACTIONS",
     "STG.RAW_EVENTS", "RPT.REVENUE_SUMMARY", "DWH.FACT_INVENTORY",
@@ -231,6 +232,7 @@ def generate_data(n=200, seed=42):
             "RUN_ID": i,
             "PROCESS_RUN_ID": f"run_{i:05d}_{random.randint(10000,99999)}",
             "PROCESS_NAME": random.choice(PROCESS_NAMES),
+            "TASK_NAME": random.choice(TASK_NAMES),
             "PROCESS_TYPE": random.choice(PROCESS_TYPES),
             "TARGET_TABLE": random.choice(TABLES),
             "START_TIME": start,
