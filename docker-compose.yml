@@ -1,9 +1,13 @@
 services:
-  procmon:
-    build: .
-    container_name: procmon
+  msb_db_process_monitoring:
+    build:
+      context: .
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+    container_name: msb_db_procmon
     restart: unless-stopped
     ports:
-      - "8501:8501"
+      - "8502:8502"
     env_file:
-      - .env
+      - ../../../.env
