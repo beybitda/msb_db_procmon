@@ -262,7 +262,7 @@ def load_oracle_data(hours_back: int = 24) -> tuple[pd.DataFrame, str | None]:
         conn = oracledb.connect(user=ORACLE_USER, password=ORACLE_PASS, dsn=dsn)
         query = """
             SELECT
-                RUN_ID, PROCESS_RUN_ID, PROCESS_NAME, PROCESS_TYPE, TARGET_TABLE,
+                RUN_ID, PROCESS_RUN_ID, PROCESS_NAME, TASK_NAME, PROCESS_TYPE, TARGET_TABLE,
                 START_TIME, END_TIME, DURATION_SECONDS, ATTEMPT_NUMBER,
                 STATUS, STATUS_NAME, BUSINESS_DATE, ROWS_PROCESSED,
                 DBMS_LOB.SUBSTR(ERROR_MESSAGE, 4000, 1) AS ERROR_MESSAGE,
@@ -372,6 +372,12 @@ with st.sidebar:
         default=[],
         placeholder="All processes",
     )
+    task_names = st.multiselect(
+        "Task name",
+        options=sorted(df_all["TASK_NAME"].unique()),
+        default=[],
+        placeholder="All tasks",
+    )
     statuses = st.multiselect(
         "Status",
         options=STATUS_NAMES,
@@ -409,6 +415,8 @@ if proc_types:
     df = df[df["PROCESS_TYPE"].isin(proc_types)]
 if proc_names:
     df = df[df["PROCESS_NAME"].isin(proc_names)]
+if task_names:
+    df = df[df["TASK_NAME"].isin(task_names)]
 if statuses:
     df = df[df["STATUS_NAME"].isin(statuses)]
 
@@ -607,15 +615,15 @@ with tab_runs:
 
     dfd = dfd.sort_values(sort_col, ascending=sort_asc)
 
-    display_cols = ["RUN_ID", "PROCESS_NAME", "PROCESS_TYPE", "TARGET_TABLE",
-                    "STATUS_NAME", "START_TIME", "DURATION_SECONDS", "ROWS_PROCESSED",
-                    "ATTEMPT_NUMBER", "BUSINESS_DATE"]
+    display_cols = ["RUN_ID", "PROCESS_NAME", "TASK_NAME", "PROCESS_TYPE", "TARGET_TABLE",
+                "STATUS_NAME", "START_TIME", "DURATION_SECONDS", "ROWS_PROCESSED",
+                "ATTEMPT_NUMBER", "BUSINESS_DATE"]
     dfd_show = dfd[display_cols].copy()
     dfd_show["START_TIME"] = dfd_show["START_TIME"].dt.strftime("%Y-%m-%d %H:%M")
     dfd_show["DURATION_SECONDS"] = dfd_show["DURATION_SECONDS"].apply(fmt_duration)
     dfd_show["ROWS_PROCESSED"] = dfd_show["ROWS_PROCESSED"].apply(fmt_rows)
-    dfd_show.columns = ["ID", "Process", "Type", "Table", "Status",
-                         "Started", "Duration", "Rows", "Attempt", "Biz date"]
+    dfd_show.columns = ["ID", "Process", "Task", "Type", "Table", "Status",
+                     "Started", "Duration", "Rows", "Attempt", "Biz date"]
 
     st.dataframe(
         dfd_show,
@@ -642,10 +650,11 @@ with tab_errors:
         st.markdown('<div style="color:#4A5068; font-family:\'IBM Plex Mono\',monospace; font-size:12px; padding:32px 0;">No failures in selected window.</div>', unsafe_allow_html=True)
     else:
         for _, row in err_df.head(30).iterrows():
-            with st.expander(f"[{row['STATUS_NAME']}]  {row['PROCESS_NAME']}  ·  {row['START_TIME'].strftime('%Y-%m-%d %H:%M')}"):
+            with st.expander(f"[{row['STATUS_NAME']}]  {row['PROCESS_NAME']} › {row['TASK_NAME']}  ·  {row['START_TIME'].strftime('%Y-%m-%d %H:%M')}"):
                 ec1, ec2, ec3 = st.columns(3)
                 ec1.markdown(f"**Run ID:** `{row['RUN_ID']}`")
                 ec1.markdown(f"**Type:** `{row['PROCESS_TYPE']}`")
+                ec1.markdown(f"**Task:** `{row['TASK_NAME']}`")
                 ec2.markdown(f"**Table:** `{row['TARGET_TABLE']}`")
                 ec2.markdown(f"**Duration:** `{fmt_duration(row['DURATION_SECONDS'])}`")
                 ec3.markdown(f"**Attempt:** `{int(row['ATTEMPT_NUMBER']) if pd.notna(row['ATTEMPT_NUMBER']) else '—'}`")
@@ -661,11 +670,10 @@ with tab_errors:
 
     st.markdown('<div class="section-eyebrow">Error frequency by process</div>', unsafe_allow_html=True)
     if not err_df.empty:
-        err_freq = err_df.groupby(["PROCESS_NAME", "STATUS_NAME"]).size().reset_index(name="count")
-        fig_err = px.bar(err_freq, x="PROCESS_NAME", y="count", color="STATUS_NAME",
-                          color_discrete_map=STATUS_COLORS,
-                          barmode="group",
-                          labels={"PROCESS_NAME": "", "count": "Occurrences", "STATUS_NAME": "Status"})
+        err_freq = err_df.groupby(["PROCESS_NAME", "TASK_NAME", "STATUS_NAME"]).size().reset_index(name="count")
+        fig_err = px.bar(err_freq, x="TASK_NAME", y="count", color="STATUS_NAME",
+                        facet_col="PROCESS_NAME",
+                        labels={"TASK_NAME": "", "count": "Occurrences", "STATUS_NAME": "Status"})
         fig_err.update_layout(**CHART_LAYOUT, **AXIS_STYLE, height=250,
                                     xaxis_tickangle=-30,
                                     legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=9)))
@@ -688,10 +696,11 @@ with tab_perf:
         st.plotly_chart(fig_hist, use_container_width=True)
 
     with pc2:
-        dur_by_proc = perf_df.groupby("PROCESS_NAME")["DURATION_SECONDS"].agg(["mean", "max", "min"]).reset_index()
-        dur_by_proc.columns = ["Process", "Avg (s)", "Max (s)", "Min (s)"]
+        dur_by_proc = perf_df.groupby(["PROCESS_NAME", "TASK_NAME"])["DURATION_SECONDS"].agg(["mean", "max", "min"]).reset_index()
+        dur_by_proc.columns = ["Process", "Task", "Avg (s)", "Max (s)", "Min (s)"]
         dur_by_proc = dur_by_proc.sort_values("Avg (s)", ascending=False).head(10)
-        fig_box = px.bar(dur_by_proc, x="Process", y="Avg (s)",
+        fig_box = px.bar(dur_by_proc, x="Task", y="Avg (s)",
+                          color="Process",
                           color_discrete_sequence=["#4A9EFF"],
                           error_y=dur_by_proc["Max (s)"] - dur_by_proc["Avg (s)"],
                           labels={"Avg (s)": "Avg duration (s)"})
@@ -716,7 +725,7 @@ with tab_perf:
     st.plotly_chart(fig_rows, use_container_width=True)
 
     st.markdown('<div class="section-eyebrow">Process performance summary</div>', unsafe_allow_html=True)
-    perf_summary = df.groupby("PROCESS_NAME").agg(
+    perf_summary = df.groupby(["PROCESS_NAME", "TASK_NAME"]).agg(
         runs=("RUN_ID", "count"),
         success_rate=("STATUS", "mean"),
         avg_dur=("DURATION_SECONDS", "mean"),
@@ -727,6 +736,6 @@ with tab_perf:
     perf_summary["avg_dur"] = perf_summary["avg_dur"].apply(fmt_duration)
     perf_summary["max_dur"] = perf_summary["max_dur"].apply(fmt_duration)
     perf_summary["total_rows"] = perf_summary["total_rows"].apply(fmt_rows)
-    perf_summary.columns = ["Process", "Runs", "SR %", "Avg dur", "Max dur", "Total rows"]
+    perf_summary.columns = ["Process", "Task", "Runs", "SR %", "Avg dur", "Max dur", "Total rows"]
     perf_summary = perf_summary.sort_values("Runs", ascending=False)
     st.dataframe(perf_summary, use_container_width=True, hide_index=True, height=300)
