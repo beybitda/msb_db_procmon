@@ -1,0 +1,9 @@
+services:
+  procmon:
+    build: .
+    container_name: procmon
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
