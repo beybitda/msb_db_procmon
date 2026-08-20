@@ -7,11 +7,15 @@ Streamlit dashboard for monitoring ETL and data pipeline executions stored in an
 ## Table of contents
 
 - [Features](#features)
-- [Table schema](#table-schema)
+- [Architecture](#architecture)
 - [Project structure](#project-structure)
+- [Table schema](#table-schema)
 - [Requirements](#requirements)
-- [Configuration](#configuration)
+- [Environment variables](#environment-variables)
 - [Running locally](#running-locally)
+- [Docker](#docker)
+- [Testing](#testing)
+- [Deployment notes](#deployment-notes)
 
 ---
 
@@ -27,9 +31,89 @@ Streamlit dashboard for monitoring ETL and data pipeline executions stored in an
 
 ---
 
+## Architecture
+
+The app follows a simple layered structure so UI, business logic, and data
+access don't bleed into each other:
+
+```
+app.py (entry point)
+  → src/components   (Streamlit rendering: sidebar, KPI cards, charts, tabs)
+      → src/services  (pure business logic: filtering, metrics, data orchestration)
+          → src/database (SQL + Oracle connection handling)
+      → src/config    (settings & constants, loaded from env)
+      → src/utils     (formatting helpers)
+      → src/models    (typed data holders, e.g. KPIMetrics)
+```
+
+Key ideas:
+
+- **`app.py` is a thin entry point.** It wires page config → sidebar → data
+  loading → filtering → tab rendering. No business logic lives here.
+- **No SQL outside `src/database`.** The single query lives in
+  `process_run_repository.py`, using a bind variable (`:hours`), not string
+  interpolation.
+- **Services are pure functions.** `metrics_service.py` and `filtering.py`
+  take a dataframe in and return a dataframe/dataclass out — no Streamlit
+  imports — so they're trivial to unit test (see `tests/`).
+- **Caching lives at the service boundary.** `st.cache_data` is applied in
+  `data_service.py` and `demo_data_service.py`, not scattered across the UI.
+- **Credentials never touch source code.** `src/config/settings.py` is the
+  only place that reads `os.getenv`; everything else receives typed
+  `OracleSettings` / `AppSettings` objects.
+
+---
+
+## Project structure
+
+```
+.
+├── app.py                          # Streamlit entry point
+├── src/
+│   ├── config/
+│   │   ├── settings.py             # OracleSettings / AppSettings, env loading
+│   │   └── constants.py            # Status vocab, colors, demo vocab, column layout
+│   ├── database/
+│   │   ├── connection.py           # Oracle connection context manager + error type
+│   │   └── repositories/
+│   │       └── process_run_repository.py   # The one place with SQL
+│   ├── services/
+│   │   ├── data_service.py         # Picks Oracle vs demo source, applies caching
+│   │   ├── demo_data_service.py    # Synthetic data generator (demo mode)
+│   │   ├── filtering.py            # Sidebar filter application (pure)
+│   │   └── metrics_service.py      # KPI + chart-data aggregations (pure)
+│   ├── components/
+│   │   ├── styles.py               # Custom CSS theme
+│   │   ├── header.py                # Title + live timestamp
+│   │   ├── kpi_cards.py             # 5-card KPI row
+│   │   ├── charts.py                # Plotly figure builders
+│   │   ├── sidebar.py               # Connection status, filters, refresh
+│   │   └── tabs/
+│   │       ├── overview_tab.py
+│   │       ├── run_log_tab.py
+│   │       ├── errors_tab.py
+│   │       └── performance_tab.py
+│   ├── models/
+│   │   └── metrics.py              # KPIMetrics dataclass
+│   └── utils/
+│       └── formatting.py           # fmt_duration, fmt_rows, status_pill_html
+├── tests/                          # pytest suite for services/utils
+├── .streamlit/
+│   └── config.toml                 # Dark theme + server settings
+├── requirements.txt
+├── requirements-dev.txt            # + pytest, for running tests
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example                    # Placeholder credentials — copy to .env
+├── .gitignore
+└── README.md
+```
+
+---
+
 ## Table schema
 
-The app reads from `PROCESS_MONITOR_LOG`:
+The app reads from `ANALYST_MSB2.MSB_DB_PROCESS_MONITOR`:
 
 | # | Column | Type | Description |
 |---|--------|------|-------------|
@@ -54,26 +138,12 @@ The app reads from `PROCESS_MONITOR_LOG`:
 
 ---
 
-## Project structure
-
-```
-.
-├── monitoring_app.py     # Streamlit application
-├── requirements.txt      # Python dependencies
-├── Dockerfile            # Container image definition
-├── docker-compose.yml    # Compose configuration
-├── .env                  # Environment variables (not committed)
-└── README.md
-```
-
----
-
 ## Requirements
 
 - Python 3.12+
-- Oracle DB accessible from the host (for live data)
+- Oracle DB accessible from the host (for live data — optional, demo mode works without it)
 
-Python packages (see `requirements.txt`):
+Runtime packages (see `requirements.txt`):
 
 ```
 streamlit>=1.35.0
@@ -85,9 +155,9 @@ python-dotenv>=1.0.0
 
 ---
 
-## Configuration
+## Environment variables
 
-Copy `.env` and fill in your Oracle credentials:
+Copy `.env.example` to `.env` and fill in your Oracle credentials:
 
 ```dotenv
 ORACLE_USER=your_username
@@ -97,7 +167,9 @@ ORACLE_PORT=1521
 ORACLE_DB=your_service_name
 ```
 
-If any of these are missing the app starts in **demo mode** with synthetic data — no Oracle connection is attempted.
+If any of these are missing, the app starts in **demo mode** with synthetic
+data — no Oracle connection is attempted. `.env` is git-ignored; never
+commit real credentials.
 
 ---
 
@@ -108,7 +180,50 @@ If any of these are missing the app starts in **demo mode** with synthetic data 
 pip install -r requirements.txt
 
 # Start the app
-streamlit run monitoring_app.py --server.port 8502
+streamlit run app.py --server.port 8502
 ```
 
 Open `http://localhost:8502` in your browser.
+
+---
+
+## Docker
+
+```bash
+docker compose up --build
+```
+
+The compose file expects a `.env` three directories up from this project
+(`../../../.env`), matching the original deployment layout — adjust the
+`env_file` path if you relocate the project.
+
+---
+
+## Testing
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Tests cover the pure logic layers — `formatting`, `filtering`,
+`metrics_service`, and `demo_data_service` — since these hold the actual
+business rules. UI rendering (`src/components`) and Oracle I/O
+(`src/database`) are intentionally left out of automated tests, since they
+require a live Streamlit runtime or a real database respectively; keeping
+the business logic pure is what makes it testable without either.
+
+---
+
+## Deployment notes
+
+- The app is stateless per Streamlit session; horizontal scaling behind a
+  load balancer works as long as sessions are sticky (Streamlit's default
+  websocket-based session model requires this).
+- `st.cache_data(ttl=30)` on data loading means Oracle is queried at most
+  once per 30 seconds per unique set of call arguments, not on every
+  rerun/filter change.
+- Auto-refresh (`time.sleep` + `st.rerun`) blocks that session's server
+  thread for the sleep duration — fine at low concurrency, but worth
+  revisiting (e.g. client-side polling) if many users enable it
+  simultaneously.
