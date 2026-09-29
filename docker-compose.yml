@@ -11,3 +11,5 @@ services:
       - "8502:8502"
     env_file:
       - ../../../.env
+    environment:
+      - TZ=Asia/Almaty

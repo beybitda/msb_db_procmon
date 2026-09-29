@@ -1,4 +1,4 @@
-"""Sidebar: connection status, filters, time window, and refresh controls.
+"""Sidebar: connection status, time window, filters, and refresh controls.
 
 The sidebar needs a dataframe to populate its multiselect *options* (e.g.
 the list of process names), so it necessarily triggers the initial data
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import pandas as pd
 import streamlit as st
 
-from src.config.constants import STATUS_NAMES, TIME_WINDOW_OPTIONS
+from src.config.constants import DEFAULT_TIME_WINDOW, STATUS_NAMES, TIME_WINDOW_OPTIONS
 from src.config.settings import AppSettings, OracleSettings
 from src.services.data_service import DEMO_SOURCE, ORACLE_SOURCE, load_data
 from src.services.filtering import RunFilters
@@ -23,7 +23,7 @@ class SidebarResult:
     source: str
     df_all: pd.DataFrame
     filters: RunFilters
-    hours_back: int
+    window: str
     auto_refresh: bool
 
 
@@ -53,18 +53,27 @@ def render_sidebar(oracle_settings: OracleSettings, app_settings: AppSettings) -
         source = _render_connection_status(oracle_settings)
 
         st.divider()
+        st.markdown("**TIME WINDOW**")
+        window = st.radio(
+            "Time window",
+            TIME_WINDOW_OPTIONS,
+            index=TIME_WINDOW_OPTIONS.index(DEFAULT_TIME_WINDOW),
+            label_visibility="collapsed",
+        )
+
+        st.divider()
         st.markdown("**FILTERS**")
 
-        # Pre-load (full 7-day window) purely to populate filter dropdown options.
+        # Load for the selected window; also populates the filter dropdown options.
         if source == ORACLE_SOURCE:
             with st.spinner("Connecting…"):
-                df_all, oracle_error = load_data(ORACLE_SOURCE, oracle_settings, app_settings, hours_back=168)
+                df_all, oracle_error = load_data(ORACLE_SOURCE, oracle_settings, app_settings, window=window)
             if oracle_error or df_all.empty:
                 st.error(f"Oracle error — falling back to demo data\n{oracle_error or 'empty result'}")
                 source = DEMO_SOURCE
-                df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, hours_back=168)
+                df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, window=window)
         else:
-            df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, hours_back=168)
+            df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, window=window)
 
         process_types = st.multiselect(
             "Process type", options=sorted(df_all["PROCESS_TYPE"].unique()),
@@ -80,13 +89,6 @@ def render_sidebar(oracle_settings: OracleSettings, app_settings: AppSettings) -
         )
         statuses = st.multiselect(
             "Status", options=STATUS_NAMES, default=[], placeholder="All statuses",
-        )
-
-        hours_back = st.select_slider(
-            "Time window",
-            options=TIME_WINDOW_OPTIONS,
-            value=24,
-            format_func=lambda h: f"Last {h}h" if h < 168 else "Last 7d",
         )
 
         st.divider()
@@ -105,6 +107,6 @@ def render_sidebar(oracle_settings: OracleSettings, app_settings: AppSettings) -
         source=source,
         df_all=df_all,
         filters=filters,
-        hours_back=hours_back,
+        window=window,
         auto_refresh=auto_refresh,
     )

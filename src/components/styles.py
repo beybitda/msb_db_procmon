@@ -37,6 +37,7 @@ section[data-testid="stSidebar"] .stMultiSelect > div > div { background-color: 
     padding: 20px 24px;
     position: relative;
     overflow: hidden;
+    margin-bottom: 12px;
 }
 .kpi-card::before {
     content: '';
@@ -49,8 +50,9 @@ section[data-testid="stSidebar"] .stMultiSelect > div > div { background-color: 
 .kpi-card.warning::before { background: #FFB627; }
 .kpi-card.total::before   { background: #4A9EFF; }
 
-.kpi-label { color: #4A5068; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'IBM Plex Mono', monospace; margin-bottom: 8px; }
+.kpi-label { color: #4A5068; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'IBM Plex Mono', monospace; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-value { color: #E8EAF0; font-size: 32px; font-weight: 300; font-family: 'IBM Plex Mono', monospace; line-height: 1; }
+.kpi-value.sm { font-size: 18px; font-weight: 500; }
 .kpi-sub   { color: #3D4258; font-size: 11px; margin-top: 4px; }
 
 /* Section headers */

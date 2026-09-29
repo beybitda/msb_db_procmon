@@ -63,5 +63,6 @@ RUN_LOG_COLUMN_LABELS = [
     "Started", "Duration", "Rows", "Attempt", "Biz date",
 ]
 
-TIME_WINDOW_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
-DEFAULT_TIME_WINDOW_HOURS = 24
+# ─── Time window presets (see filtering.window_start) ───────────────────────
+TIME_WINDOW_OPTIONS = ["Today", "Yesterday + today", "1 week", "1 month", "All time"]
+DEFAULT_TIME_WINDOW = "Today"

@@ -1,12 +1,13 @@
 """Data-access for the process monitor log table.
 
 This is the only module that contains SQL. The query is parameterized
-(bind variable ``:hours``) rather than string-interpolated, so it is not
+(bind variable ``:since``) rather than string-interpolated, so it is not
 vulnerable to SQL injection.
 """
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import pandas as pd
 
@@ -19,7 +20,8 @@ _TIMESTAMP_COLUMNS = ["START_TIME", "END_TIME", "UPDATED_AT", "INSERTED_AT"]
 _NUMERIC_COLUMNS = ["DURATION_SECONDS", "ROWS_PROCESSED", "ATTEMPT_NUMBER", "STATUS", "RUN_ID"]
 
 
-def _build_query(table_name: str) -> str:
+def _build_query(table_name: str, bounded: bool) -> str:
+    where = "WHERE START_TIME >= :since" if bounded else ""
     return f"""
         SELECT
             RUN_ID, PROCESS_RUN_ID, PROCESS_NAME, TASK_NAME, PROCESS_TYPE, TARGET_TABLE,
@@ -29,7 +31,7 @@ def _build_query(table_name: str) -> str:
             DBMS_LOB.SUBSTR(EXTRA_INFO, 4000, 1)    AS EXTRA_INFO,
             UPDATED_AT, INSERTED_AT
         FROM {table_name}
-        WHERE START_TIME >= SYSDATE - :hours / 24
+        {where}
         ORDER BY START_TIME DESC
     """
 
@@ -48,21 +50,22 @@ def _normalize_types(df: pd.DataFrame) -> pd.DataFrame:
 def fetch_process_runs(
     oracle_settings: OracleSettings,
     app_settings: AppSettings,
-    hours_back: int = 24,
+    since: datetime | None = None,
 ) -> tuple[pd.DataFrame, str | None]:
-    """Fetch process run rows from Oracle for the given lookback window.
+    """Fetch process run rows from Oracle starting at ``since`` (None = all time).
 
     Returns:
         (dataframe, error_message). ``error_message`` is ``None`` on success;
         on failure an empty dataframe is returned alongside a human-readable
         error string so the UI can decide how to degrade gracefully.
     """
-    query = _build_query(app_settings.table_name)
+    query = _build_query(app_settings.table_name, bounded=since is not None)
+    params = {"since": since} if since is not None else {}
     try:
         with oracle_connection(oracle_settings) as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute(query, hours=hours_back)
+                cursor.execute(query, params)
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()
             finally:

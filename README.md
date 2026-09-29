@@ -146,7 +146,7 @@ The app reads from `ANALYST_MSB2.MSB_DB_PROCESS_MONITOR`:
 Runtime packages (see `requirements.txt`):
 
 ```
-streamlit>=1.35.0
+streamlit>=1.37.0
 pandas>=2.0.0
 plotly>=5.20.0
 oracledb>=2.0.0
@@ -220,7 +220,7 @@ the business logic pure is what makes it testable without either.
 - The app is stateless per Streamlit session; horizontal scaling behind a
   load balancer works as long as sessions are sticky (Streamlit's default
   websocket-based session model requires this).
-- `st.cache_data(ttl=30)` on data loading means Oracle is queried at most
+- `st.cache_data(ttl=20)` on data loading means Oracle is queried at most
   once per 30 seconds per unique set of call arguments, not on every
   rerun/filter change.
 - Auto-refresh (`time.sleep` + `st.rerun`) blocks that session's server

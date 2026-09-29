@@ -102,3 +102,26 @@ def performance_summary(df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index()
     summary["success_rate"] = (summary["success_rate"] * 100).round(1)
     return summary.sort_values("runs", ascending=False)
+
+
+def task_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per (process, task): latest status + aggregates. Problems first."""
+    cols = ["PROCESS_NAME", "TASK_NAME", "runs", "success_rate", "avg_dur",
+            "last_start", "last_status", "is_problem"]
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+    out = (
+        df.sort_values("START_TIME")
+        .groupby(["PROCESS_NAME", "TASK_NAME"])
+        .agg(
+            runs=("RUN_ID", "count"),
+            success_rate=("STATUS", "mean"),
+            avg_dur=("DURATION_SECONDS", "mean"),
+            last_start=("START_TIME", "last"),
+            last_status=("STATUS_NAME", "last"),
+        )
+        .reset_index()
+    )
+    out["success_rate"] = (out["success_rate"] * 100).round(1)
+    out["is_problem"] = out["last_status"].isin(PROBLEM_STATUSES)
+    return out.sort_values(["is_problem", "last_start"], ascending=[False, False])

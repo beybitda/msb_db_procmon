@@ -54,7 +54,7 @@ def _generate_row(i: int, now: datetime) -> dict:
     }
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=20)
 def generate_demo_data(n: int = 300, seed: int = 42) -> pd.DataFrame:
     """Deterministic (seeded) synthetic dataset shaped like the Oracle table."""
     random.seed(seed)

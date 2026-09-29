@@ -3,7 +3,13 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from src.services.filtering import RunFilters, apply_filters, apply_search, apply_time_window
+from src.services.filtering import (
+    RunFilters,
+    apply_filters,
+    apply_search,
+    apply_time_window,
+    window_start,
+)
 
 
 @pytest.fixture
@@ -38,9 +44,21 @@ def test_apply_filters_by_status(sample_df):
 
 def test_apply_time_window_excludes_old_rows(sample_df):
     now = datetime(2026, 1, 1, 12, 0, 0)
-    result = apply_time_window(sample_df, hours_back=24, now=now)
+    result = apply_time_window(sample_df, "Today", now=now)
     assert len(result) == 1
     assert result.iloc[0]["PROCESS_NAME"] == "etl_customers"
+
+
+def test_apply_time_window_all_time_returns_everything(sample_df):
+    assert len(apply_time_window(sample_df, "All time")) == 2
+
+
+def test_window_start_presets():
+    now = datetime(2026, 1, 10, 15, 30)
+    assert window_start("Today", now) == datetime(2026, 1, 10)
+    assert window_start("Yesterday + today", now) == datetime(2026, 1, 9)
+    assert window_start("1 week", now) == datetime(2026, 1, 3, 15, 30)
+    assert window_start("All time", now) is None
 
 
 def test_apply_search_matches_process_name(sample_df):

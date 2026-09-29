@@ -31,15 +31,27 @@ def apply_filters(df: pd.DataFrame, filters: RunFilters) -> pd.DataFrame:
     return df
 
 
-def apply_time_window(df: pd.DataFrame, hours_back: int, now: datetime | None = None) -> pd.DataFrame:
-    """Slice an in-memory dataframe to the given lookback window.
+def window_start(window: str, now: datetime | None = None) -> datetime | None:
+    """Start of the preset window; None means unbounded (All time)."""
+    now = now or datetime.now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        "Today": midnight,
+        "Yesterday + today": midnight - timedelta(days=1),
+        "1 week": now - timedelta(days=7),
+        "1 month": now - timedelta(days=30),
+        "All time": None,
+    }[window]
+
+
+def apply_time_window(df: pd.DataFrame, window: str, now: datetime | None = None) -> pd.DataFrame:
+    """Slice an in-memory dataframe to the given preset window.
 
     Only needed for the demo data source; Oracle queries already scope the
     time window in SQL.
     """
-    now = now or datetime.now()
-    cutoff = now - timedelta(hours=hours_back)
-    return df[df["START_TIME"] >= cutoff]
+    start = window_start(window, now)
+    return df if start is None else df[df["START_TIME"] >= start]
 
 
 def apply_search(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
