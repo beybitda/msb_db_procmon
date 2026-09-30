@@ -75,3 +75,30 @@ def fetch_process_runs(
     except OracleConnectionError as exc:
         logger.warning("Failed to fetch process runs from Oracle: %s", exc)
         return pd.DataFrame(), str(exc)
+
+
+def fetch_task_catalog(
+    oracle_settings: OracleSettings,
+    app_settings: AppSettings,
+) -> tuple[pd.DataFrame, str | None]:
+    """All distinct (process, task, type) ever seen + their latest START_TIME."""
+    query = f"""
+        SELECT PROCESS_NAME, TASK_NAME, PROCESS_TYPE, MAX(START_TIME) AS LAST_START
+        FROM {app_settings.table_name}
+        GROUP BY PROCESS_NAME, TASK_NAME, PROCESS_TYPE
+    """
+    try:
+        with oracle_connection(oracle_settings) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(query)
+                columns = [c[0].upper() for c in cursor.description]
+                rows = cursor.fetchall()
+            finally:
+                cursor.close()
+        df = pd.DataFrame(rows, columns=columns)
+        df["LAST_START"] = pd.to_datetime(df["LAST_START"], errors="coerce")
+        return df, None
+    except OracleConnectionError as exc:
+        logger.warning("Failed to fetch task catalog from Oracle: %s", exc)
+        return pd.DataFrame(), str(exc)

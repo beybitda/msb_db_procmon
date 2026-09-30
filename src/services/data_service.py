@@ -10,9 +10,10 @@ import pandas as pd
 import streamlit as st
 
 from src.config.settings import AppSettings, OracleSettings
-from src.database.repositories.process_run_repository import fetch_process_runs
+from src.database.repositories.process_run_repository import fetch_process_runs, fetch_task_catalog
 from src.services.demo_data_service import generate_demo_data_with_settings
 from src.services.filtering import apply_time_window, window_start
+from src.services import metrics_service
 
 DataSource = str  # "Oracle DB" | "Demo data"
 
@@ -31,6 +32,12 @@ def _cached_fetch_process_runs(
     return fetch_process_runs(oracle_settings, app_settings, since=window_start(window))
 
 
+@st.cache_data(ttl=300)
+def _cached_fetch_task_catalog(oracle_settings: OracleSettings, app_settings: AppSettings) -> pd.DataFrame:
+    df, _ = fetch_task_catalog(oracle_settings, app_settings)
+    return df
+
+
 def load_data(
     source: DataSource,
     oracle_settings: OracleSettings,
@@ -46,3 +53,10 @@ def load_data(
         return _cached_fetch_process_runs(oracle_settings, app_settings, window)
     demo = generate_demo_data_with_settings(app_settings)
     return apply_time_window(demo, window), None
+
+
+def load_task_catalog(source: DataSource, oracle_settings: OracleSettings, app_settings: AppSettings) -> pd.DataFrame:
+    """All-time (process, task) catalog, independent of the selected window."""
+    if source == ORACLE_SOURCE:
+        return _cached_fetch_task_catalog(oracle_settings, app_settings)
+    return metrics_service.catalog_from_runs(generate_demo_data_with_settings(app_settings))

@@ -5,6 +5,7 @@ import pytest
 
 from src.services.filtering import (
     RunFilters,
+    apply_catalog_filters,
     apply_filters,
     apply_search,
     apply_time_window,
@@ -69,3 +70,13 @@ def test_apply_search_matches_process_name(sample_df):
 def test_apply_search_empty_returns_all(sample_df):
     result = apply_search(sample_df, "")
     assert len(result) == 2
+
+
+def test_apply_catalog_filters_ignores_status():
+    catalog = pd.DataFrame([
+        dict(PROCESS_NAME="a", TASK_NAME="x", PROCESS_TYPE="AIRFLOW"),
+        dict(PROCESS_NAME="b", TASK_NAME="y", PROCESS_TYPE="DBT"),
+    ])
+    result = apply_catalog_filters(catalog, RunFilters(process_types=["DBT"], statuses=["FAILED"]))
+    assert len(result) == 1
+    assert result.iloc[0]["PROCESS_NAME"] == "b"

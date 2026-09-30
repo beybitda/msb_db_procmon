@@ -11,8 +11,8 @@ from src.components.styles import inject_custom_css
 from src.components.tabs import errors_tab, overview_tab, performance_tab, run_log_tab
 from src.config.settings import get_app_settings, get_oracle_settings
 from src.services import metrics_service
-from src.services.data_service import load_data
-from src.services.filtering import apply_filters
+from src.services.data_service import load_data, load_task_catalog
+from src.services.filtering import apply_catalog_filters, apply_filters
 
 app_settings = get_app_settings()
 oracle_settings = get_oracle_settings()
@@ -34,16 +34,20 @@ def dashboard() -> None:
     if df.empty:
         df = sidebar.df_all
     df = apply_filters(df, sidebar.filters)
+    catalog = apply_catalog_filters(
+        load_task_catalog(sidebar.source, oracle_settings, app_settings), sidebar.filters
+    )
 
     header.render_header()
     if df.empty:
         st.info("No runs in the selected window.")
+        overview_tab.render(df, catalog)   # показываем все tasks с 0 runs
         return
     kpi_cards.render_kpi_cards(metrics_service.compute_kpis(df))
 
     tab_overview, tab_runs, tab_errors, tab_perf = st.tabs(["Overview", "Run log", "Errors", "Performance"])
     with tab_overview:
-        overview_tab.render(df)
+        overview_tab.render(df, catalog)
     with tab_runs:
         run_log_tab.render(df)
     with tab_errors:

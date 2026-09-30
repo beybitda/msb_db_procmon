@@ -19,11 +19,16 @@ def _task_color(today_status) -> str:
 
 def _task_row_html(t: pd.Series) -> str:
     color = _task_color(t["today_status"])
+    last = f"{t['last_start']:%m-%d %H:%M}" if pd.notna(t["last_start"]) else "—"
+    if int(t["runs"]) == 0:
+        meta = f"0 runs · — ok · avg — · last {last}"
+    else:
+        meta = f"{int(t['runs'])} runs · {t['success_rate']:.0f}% ok · avg {fmt_duration(t['avg_dur'])} · last {last}"
     return f"""
     <div class="task-row">
         <span class="task-dot" style="background:{color}"></span>
         <span class="task-name">{t['TASK_NAME']}</span>
-        <span class="task-meta">{int(t['runs'])} runs · {t['success_rate']:.0f}% ok · avg {fmt_duration(t['avg_dur'])} · last {t['last_start']:%m-%d %H:%M}</span>
+        <span class="task-meta">{meta}</span>
     </div>"""
 
 
@@ -39,8 +44,8 @@ def _render_process_group(proc_name: str, tasks: pd.DataFrame) -> None:
     )
 
 
-def _render_task_groups(df: pd.DataFrame) -> None:
-    tasks = metrics_service.task_summary(df)
+def _render_task_groups(df: pd.DataFrame, catalog: pd.DataFrame | None) -> None:
+    tasks = metrics_service.task_summary(df, catalog)
     if tasks.empty:
         return
 
@@ -57,5 +62,5 @@ def _render_task_groups(df: pd.DataFrame) -> None:
             _render_process_group(proc_name, groups.get_group(proc_name))
 
 
-def render(df: pd.DataFrame) -> None:
-    _render_task_groups(df)
+def render(df: pd.DataFrame, catalog: pd.DataFrame | None = None) -> None:
+    _render_task_groups(df, catalog)

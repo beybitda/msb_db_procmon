@@ -68,10 +68,10 @@ def render_sidebar(oracle_settings: OracleSettings, app_settings: AppSettings) -
         if source == ORACLE_SOURCE:
             with st.spinner("Connecting…"):
                 df_all, oracle_error = load_data(ORACLE_SOURCE, oracle_settings, app_settings, window=window)
-            if oracle_error or df_all.empty:
-                st.error(f"Oracle error — falling back to demo data\n{oracle_error or 'empty result'}")
-                source = DEMO_SOURCE
-                df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, window=window)
+                if oracle_error:
+                    st.error(f"Oracle error — falling back to demo data\n{oracle_error}")
+                    source = DEMO_SOURCE
+                    df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, window=window)
         else:
             df_all, _ = load_data(DEMO_SOURCE, oracle_settings, app_settings, window=window)
 

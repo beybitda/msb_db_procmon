@@ -64,3 +64,16 @@ def apply_search(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
         | df["PROCESS_RUN_ID"].str.contains(search_text, case=False, na=False)
     )
     return df[mask]
+
+
+def apply_catalog_filters(catalog: pd.DataFrame, filters: RunFilters) -> pd.DataFrame:
+    """Type/process/task filters only (status is a property of a run, not a task)."""
+    if catalog.empty:
+        return catalog
+    if filters.process_types:
+        catalog = catalog[catalog["PROCESS_TYPE"].isin(filters.process_types)]
+    if filters.process_names:
+        catalog = catalog[catalog["PROCESS_NAME"].isin(filters.process_names)]
+    if filters.task_names:
+        catalog = catalog[catalog["TASK_NAME"].isin(filters.task_names)]
+    return catalog

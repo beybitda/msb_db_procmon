@@ -10,6 +10,8 @@ import pandas as pd
 from src.config.constants import PROBLEM_STATUSES, RUNNING_STATUSES
 from src.models.metrics import KPIMetrics
 
+_TASK_KEYS = ["PROCESS_NAME", "TASK_NAME"]
+
 
 def compute_kpis(df: pd.DataFrame) -> KPIMetrics:
     total = len(df)
@@ -138,3 +140,69 @@ def task_summary(df: pd.DataFrame) -> pd.DataFrame:
     out["today_status"] = out.set_index(["PROCESS_NAME", "TASK_NAME"]).index.map(today_status)
 
     return out.sort_values("last_start", ascending=True)
+
+
+def catalog_from_runs(df: pd.DataFrame) -> pd.DataFrame:
+    """Build a task catalog from run rows (used for demo data / fallback)."""
+    if df.empty:
+        return pd.DataFrame(columns=_TASK_KEYS + ["PROCESS_TYPE", "LAST_START"])
+    return (
+        df.groupby(_TASK_KEYS + ["PROCESS_TYPE"], as_index=False)["START_TIME"]
+        .max()
+        .rename(columns={"START_TIME": "LAST_START"})
+    )
+
+
+def task_summary(df: pd.DataFrame, catalog: pd.DataFrame | None = None) -> pd.DataFrame:
+    """One row per (process, task) from ``catalog`` (all time) ∪ tasks seen in ``df``.
+
+    Stats (runs, success_rate, avg_dur) cover only ``df`` (the selected window);
+    tasks with no runs in the window get runs=0 and NaN stats. ``last_start`` is
+    the latest start ever; ``today_status`` is the latest run started today.
+    """
+    cols = ["PROCESS_NAME", "TASK_NAME", "runs", "success_rate", "avg_dur",
+            "last_start", "last_status", "today_status"]
+
+    if df.empty:
+        stats = pd.DataFrame(columns=_TASK_KEYS + ["runs", "success_rate", "avg_dur", "last_start", "last_status"])
+    else:
+        stats = (
+            df.sort_values("START_TIME")
+            .groupby(_TASK_KEYS)
+            .agg(
+                runs=("RUN_ID", "count"),
+                success_rate=("STATUS", "mean"),
+                avg_dur=("DURATION_SECONDS", "mean"),
+                last_start=("START_TIME", "last"),
+                last_status=("STATUS_NAME", "last"),
+            )
+            .reset_index()
+        )
+        stats["success_rate"] = (stats["success_rate"] * 100).round(1)
+
+    if catalog is None or catalog.empty:
+        cat = stats[_TASK_KEYS + ["last_start"]].rename(columns={"last_start": "cat_last_start"})
+    else:
+        cat = (
+            catalog.groupby(_TASK_KEYS, as_index=False)["LAST_START"].max()
+            .rename(columns={"LAST_START": "cat_last_start"})
+        )
+
+    out = cat.merge(stats, on=_TASK_KEYS, how="outer")
+    if out.empty:
+        return pd.DataFrame(columns=cols)
+
+    out["runs"] = out["runs"].fillna(0).astype(int)
+    out["last_start"] = out["cat_last_start"].combine_first(out["last_start"])
+
+    today = pd.Timestamp.now().normalize()
+    today_df = df[df["START_TIME"].dt.normalize() == today] if not df.empty else df
+    if today_df.empty:
+        out["today_status"] = None
+    else:
+        today_status = (
+            today_df.sort_values("START_TIME").groupby(_TASK_KEYS)["STATUS_NAME"].last()
+        )
+        out["today_status"] = out.set_index(_TASK_KEYS).index.map(today_status)
+
+    return out[cols].sort_values("last_start", ascending=True, na_position="last")

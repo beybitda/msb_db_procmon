@@ -81,3 +81,22 @@ def test_performance_summary(sample_df):
         "PROCESS_NAME", "TASK_NAME", "runs", "success_rate", "avg_dur", "max_dur", "total_rows",
     }
     assert summary["runs"].sum() == 4
+
+
+def test_task_summary_includes_catalog_tasks_with_zero_runs(sample_df):
+    catalog = pd.DataFrame([
+        dict(PROCESS_NAME="etl_customers", TASK_NAME="extract", PROCESS_TYPE="AIRFLOW",
+             LAST_START=datetime(2026, 1, 1)),
+        dict(PROCESS_NAME="old_proc", TASK_NAME="legacy", PROCESS_TYPE="SERVICE",
+             LAST_START=datetime(2025, 6, 1)),
+    ])
+    out = metrics_service.task_summary(sample_df, catalog)
+    legacy = out[out["TASK_NAME"] == "legacy"].iloc[0]
+    assert legacy["runs"] == 0
+    assert pd.isna(legacy["today_status"])
+
+
+def test_catalog_from_runs(sample_df):
+    cat = metrics_service.catalog_from_runs(sample_df.assign(PROCESS_TYPE=sample_df["PROCESS_TYPE"]))
+    assert set(cat.columns) >= {"PROCESS_NAME", "TASK_NAME", "PROCESS_TYPE", "LAST_START"}
+    assert len(cat) == 4
