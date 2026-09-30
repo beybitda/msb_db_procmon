@@ -105,11 +105,14 @@ def performance_summary(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def task_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per (process, task): latest status + aggregates. Problems first."""
+    """One row per (process, task): latest overall run + status for the current calendar date."""
     cols = ["PROCESS_NAME", "TASK_NAME", "runs", "success_rate", "avg_dur",
-            "last_start", "last_status", "is_problem"]
+            "last_start", "last_status", "today_status"]
     if df.empty:
         return pd.DataFrame(columns=cols)
+
+    today = pd.Timestamp.now().normalize().date()
+
     out = (
         df.sort_values("START_TIME")
         .groupby(["PROCESS_NAME", "TASK_NAME"])
@@ -123,5 +126,15 @@ def task_summary(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
     out["success_rate"] = (out["success_rate"] * 100).round(1)
-    out["is_problem"] = out["last_status"].isin(PROBLEM_STATUSES)
-    return out.sort_values(["is_problem", "last_start"], ascending=[False, False])
+
+    # Status of the latest run whose START_TIME falls on today's calendar date;
+    # NaN if no run has started yet today.
+    today_df = df[df["START_TIME"].dt.normalize() == pd.Timestamp(today)]
+    today_status = (
+        today_df.sort_values("START_TIME")
+        .groupby(["PROCESS_NAME", "TASK_NAME"])["STATUS_NAME"]
+        .last()
+    )
+    out["today_status"] = out.set_index(["PROCESS_NAME", "TASK_NAME"]).index.map(today_status)
+
+    return out.sort_values("last_start", ascending=True)

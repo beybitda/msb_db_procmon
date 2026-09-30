@@ -20,6 +20,13 @@ def fmt_duration(seconds) -> str:
     return f"{seconds // 3600}h {(seconds % 3600) // 60}m"
 
 
+def fmt_timestamp(ts) -> str:
+    """Render a timestamp as 'YYYY-MM-DD HH:MM', or an em dash if missing/NaT."""
+    if pd.isna(ts):
+        return "—"
+    return ts.strftime("%Y-%m-%d %H:%M")
+
+
 def fmt_rows(count) -> str:
     """Render a row count with K/M suffixes ('1.2M')."""
     if pd.isna(count):

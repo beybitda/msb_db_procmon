@@ -50,6 +50,45 @@ section[data-testid="stSidebar"] .stMultiSelect > div > div { background-color: 
 .kpi-card.warning::before { background: #FFB627; }
 .kpi-card.total::before   { background: #4A9EFF; }
 
+.proc-group {
+    background: #111318;
+    border: 1px solid #1E222D;
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.proc-group-title {
+    color: #C8CCDB;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #1E222D;
+}
+.task-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.task-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.task-name {
+    color: #E8EAF0;
+    font-size: 12px;
+    min-width: 90px;
+}
+.task-meta {
+    color: #4A5068;
+    font-size: 10px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 .kpi-label { color: #4A5068; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'IBM Plex Mono', monospace; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-value { color: #E8EAF0; font-size: 32px; font-weight: 300; font-family: 'IBM Plex Mono', monospace; line-height: 1; }
 .kpi-value.sm { font-size: 18px; font-weight: 500; }

@@ -3,7 +3,7 @@ import streamlit as st
 
 from src.config.constants import RUN_LOG_COLUMN_LABELS, RUN_LOG_COLUMNS
 from src.services.filtering import apply_search
-from src.utils.formatting import fmt_duration, fmt_rows
+from src.utils.formatting import fmt_duration, fmt_rows, fmt_timestamp
 
 
 def render(df: pd.DataFrame) -> None:
@@ -28,7 +28,8 @@ def render(df: pd.DataFrame) -> None:
     filtered = filtered.sort_values(sort_col, ascending=sort_asc)
 
     display = filtered[RUN_LOG_COLUMNS].copy()
-    display["START_TIME"] = display["START_TIME"].dt.strftime("%Y-%m-%d %H:%M")
+    display["START_TIME"] = display["START_TIME"].apply(fmt_timestamp)
+    display["END_TIME"] = display["END_TIME"].apply(fmt_timestamp)
     display["DURATION_SECONDS"] = display["DURATION_SECONDS"].apply(fmt_duration)
     display["ROWS_PROCESSED"] = display["ROWS_PROCESSED"].apply(fmt_rows)
     display.columns = RUN_LOG_COLUMN_LABELS

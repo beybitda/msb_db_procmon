@@ -1,55 +1,61 @@
 import pandas as pd
 import streamlit as st
 
-from src.components import charts
 from src.services import metrics_service
 from src.utils.formatting import fmt_duration
 
-_CARD_CLASS = {"SUCCESS": "success", "FAILED": "failed", "TIMEOUT": "failed", "WARNING": "warning"}
+_COLOR_SUCCESS = "#00D4A0"
+_COLOR_FAILED = "#FF4757"
+_COLOR_NOT_STARTED = "#FFB627"
 
 
-def _render_task_cards(df: pd.DataFrame, per_row: int = 4, limit: int = 12) -> None:
+def _task_color(today_status) -> str:
+    if pd.isna(today_status):
+        return _COLOR_NOT_STARTED
+    if today_status == "SUCCESS":
+        return _COLOR_SUCCESS
+    return _COLOR_FAILED
+
+
+def _task_row_html(t: pd.Series) -> str:
+    color = _task_color(t["today_status"])
+    return f"""
+    <div class="task-row">
+        <span class="task-dot" style="background:{color}"></span>
+        <span class="task-name">{t['TASK_NAME']}</span>
+        <span class="task-meta">{int(t['runs'])} runs · {t['success_rate']:.0f}% ok · avg {fmt_duration(t['avg_dur'])} · last {t['last_start']:%m-%d %H:%M}</span>
+    </div>"""
+
+
+def _render_process_group(proc_name: str, tasks: pd.DataFrame) -> None:
+    rows_html = "".join(_task_row_html(t) for _, t in tasks.iterrows())
+    st.markdown(
+        f"""
+        <div class="proc-group">
+            <div class="proc-group-title">{proc_name}</div>
+            {rows_html}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_task_groups(df: pd.DataFrame) -> None:
     tasks = metrics_service.task_summary(df)
     if tasks.empty:
         return
+
     st.markdown('<div class="section-eyebrow">Tasks · latest state</div>', unsafe_allow_html=True)
-    if len(tasks) > limit and not st.toggle(f"Show all {len(tasks)} tasks", value=False):
-        tasks = tasks.head(limit)
-    for i in range(0, len(tasks), per_row):
-        cols = st.columns(per_row)
-        for col, (_, t) in zip(cols, tasks.iloc[i:i + per_row].iterrows()):
-            css = _CARD_CLASS.get(t["last_status"], "total")
-            col.markdown(
-                f"""
-                <div class="kpi-card {css}">
-                    <div class="kpi-label">{t['PROCESS_NAME']} › {t['TASK_NAME']}</div>
-                    <div class="kpi-value sm">{t['last_status']}</div>
-                    <div class="kpi-sub">{int(t['runs'])} runs · {t['success_rate']:.0f}% ok · avg {fmt_duration(t['avg_dur'])}</div>
-                    <div class="kpi-sub">last {t['last_start']:%m-%d %H:%M}</div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+
+    # Processes ordered by their most recent START_TIME; tasks within a
+    # process keep that same ordering (task_summary already sorts by last_start desc).
+    proc_order = tasks.groupby("PROCESS_NAME", sort=False)["last_start"].max().sort_values(ascending=False).index
+    groups = tasks.groupby("PROCESS_NAME", sort=False)
+
+    col1, col2 = st.columns(2)
+    for i, proc_name in enumerate(proc_order):
+        with (col1 if i % 2 == 0 else col2):
+            _render_process_group(proc_name, groups.get_group(proc_name))
 
 
 def render(df: pd.DataFrame) -> None:
-    total = len(df)
-
-    _render_task_cards(df)
-
-    st.markdown('<div class="section-eyebrow">Runs over time</div>', unsafe_allow_html=True)
-    ts_pivot = metrics_service.runs_over_time(df)
-    st.plotly_chart(charts.runs_over_time_chart(ts_pivot), width='stretch')
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown('<div class="section-eyebrow">Status</div>', unsafe_allow_html=True)
-        status_counts = metrics_service.status_distribution(df)
-        st.plotly_chart(charts.status_pie(status_counts, total), width='stretch')
-    with c2:
-        st.markdown('<div class="section-eyebrow">By process type</div>', unsafe_allow_html=True)
-        type_stats = metrics_service.stats_by_process_type(df)
-        st.plotly_chart(charts.process_type_breakdown(type_stats), width='stretch')
-    with c3:
-        st.markdown('<div class="section-eyebrow">Top processes</div>', unsafe_allow_html=True)
-        top_proc = metrics_service.top_processes_by_run_count(df)
-        st.plotly_chart(charts.top_processes_bar(top_proc), width='stretch')
+    _render_task_groups(df)

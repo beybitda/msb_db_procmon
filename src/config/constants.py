@@ -55,12 +55,12 @@ PROBLEM_STATUSES = ["FAILED", "TIMEOUT", "WARNING"]
 # ─── Column layout for the Run log tab ──────────────────────────────────────
 RUN_LOG_COLUMNS = [
     "RUN_ID", "PROCESS_NAME", "TASK_NAME", "PROCESS_TYPE", "TARGET_TABLE",
-    "STATUS_NAME", "START_TIME", "DURATION_SECONDS", "ROWS_PROCESSED",
+    "STATUS_NAME", "START_TIME", "END_TIME", "DURATION_SECONDS", "ROWS_PROCESSED",
     "ATTEMPT_NUMBER", "BUSINESS_DATE",
 ]
 RUN_LOG_COLUMN_LABELS = [
     "ID", "Process", "Task", "Type", "Table", "Status",
-    "Started", "Duration", "Rows", "Attempt", "Biz date",
+    "Started", "Ended", "Duration", "Rows", "Attempt", "Biz date",
 ]
 
 # ─── Time window presets (see filtering.window_start) ───────────────────────
