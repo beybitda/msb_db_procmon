@@ -1,20 +1,17 @@
 import pandas as pd
 import streamlit as st
 
+from src.config.constants import STATUS_COLORS
 from src.services import metrics_service
 from src.utils.formatting import fmt_duration
 
-_COLOR_SUCCESS = "#00D4A0"
-_COLOR_FAILED = "#FF4757"
 _COLOR_NOT_STARTED = "#FFB627"
 
 
 def _task_color(today_status) -> str:
     if pd.isna(today_status):
         return _COLOR_NOT_STARTED
-    if today_status == "SUCCESS":
-        return _COLOR_SUCCESS
-    return _COLOR_FAILED
+    return STATUS_COLORS.get(today_status, _COLOR_NOT_STARTED)
 
 
 def _task_row_html(t: pd.Series) -> str:
