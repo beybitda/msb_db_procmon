@@ -106,53 +106,6 @@ def performance_summary(df: pd.DataFrame) -> pd.DataFrame:
     return summary.sort_values("runs", ascending=False)
 
 
-def task_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per (process, task): latest overall run + status for the current calendar date."""
-    cols = ["PROCESS_NAME", "TASK_NAME", "runs", "success_rate", "avg_dur",
-            "last_start", "last_status", "today_status"]
-    if df.empty:
-        return pd.DataFrame(columns=cols)
-
-    today = pd.Timestamp.now().normalize().date()
-
-    out = (
-        df.sort_values("START_TIME")
-        .groupby(["PROCESS_NAME", "TASK_NAME"])
-        .agg(
-            runs=("RUN_ID", "count"),
-            success_rate=("STATUS", "mean"),
-            avg_dur=("DURATION_SECONDS", "mean"),
-            last_start=("START_TIME", "last"),
-            last_status=("STATUS_NAME", "last"),
-        )
-        .reset_index()
-    )
-    out["success_rate"] = (out["success_rate"] * 100).round(1)
-
-    # Status of the latest run whose START_TIME falls on today's calendar date;
-    # NaN if no run has started yet today.
-    today_df = df[df["START_TIME"].dt.normalize() == pd.Timestamp(today)]
-    today_status = (
-        today_df.sort_values("START_TIME")
-        .groupby(["PROCESS_NAME", "TASK_NAME"])["STATUS_NAME"]
-        .last()
-    )
-    out["today_status"] = out.set_index(["PROCESS_NAME", "TASK_NAME"]).index.map(today_status)
-
-    return out.sort_values("last_start", ascending=True)
-
-
-def catalog_from_runs(df: pd.DataFrame) -> pd.DataFrame:
-    """Build a task catalog from run rows (used for demo data / fallback)."""
-    if df.empty:
-        return pd.DataFrame(columns=_TASK_KEYS + ["PROCESS_TYPE", "LAST_START"])
-    return (
-        df.groupby(_TASK_KEYS + ["PROCESS_TYPE"], as_index=False)["START_TIME"]
-        .max()
-        .rename(columns={"START_TIME": "LAST_START"})
-    )
-
-
 def task_summary(df: pd.DataFrame, catalog: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per (process, task) from ``catalog`` (all time) ∪ tasks seen in ``df``.
 
@@ -206,3 +159,15 @@ def task_summary(df: pd.DataFrame, catalog: pd.DataFrame | None = None) -> pd.Da
         out["today_status"] = out.set_index(_TASK_KEYS).index.map(today_status)
 
     return out[cols].sort_values("last_start", ascending=True, na_position="last")
+
+
+def catalog_from_runs(df: pd.DataFrame) -> pd.DataFrame:
+    """Build a task catalog from run rows (used for demo data / fallback)."""
+    if df.empty:
+        return pd.DataFrame(columns=_TASK_KEYS + ["PROCESS_TYPE", "LAST_START"])
+    return (
+        df.groupby(_TASK_KEYS + ["PROCESS_TYPE"], as_index=False)["START_TIME"]
+        .max()
+        .rename(columns={"START_TIME": "LAST_START"})
+    )
+
